@@ -632,30 +632,26 @@ var DATA = {
 
 var ST = {};
 var _fbSaveTimer = null;
-var _fbIgnoreNext = false;
+var _lastSaveTime = 0;
 
 function syncIndicator(state, text){
   var el = document.getElementById('sync-indicator');
   if(!el) return;
-  el.className = 'syncing'; // reset
   el.className = state;
   el.textContent = text;
+  el.style.opacity = '1';
   if(state === 'saved'){
-    setTimeout(function(){ el.style.opacity='0'; }, 2000);
-  } else {
-    el.style.opacity='1';
+    setTimeout(function(){ el.style.opacity='0'; }, 2500);
   }
 }
 
 function save(){
-  // Always keep localStorage as fallback
   try{ localStorage.setItem('lime_opening_v2', JSON.stringify(ST)); }catch(e){}
-  // Debounce Firebase writes (300ms)
   clearTimeout(_fbSaveTimer);
   _fbSaveTimer = setTimeout(function(){
     syncIndicator('syncing', '⟳ Сохранение...');
     if(window._fbSet){
-      _fbIgnoreNext = true;
+      _lastSaveTime = Date.now();
       window._fbSet(ST).then(function(){
         syncIndicator('saved', '✓ Сохранено');
       }).catch(function(){
@@ -665,15 +661,15 @@ function save(){
   }, 300);
 }
 
-// Initialize: load from Firebase, fall back to localStorage
 function initState(){
-  // Load localStorage as immediate fallback
   try{ ST = JSON.parse(localStorage.getItem('lime_opening_v2')||'{}'); }catch(e){}
 
   function startListening(){
     syncIndicator('syncing', '⟳ Подключение...');
     window._fbListen(function(val){
-      if(_fbIgnoreNext){ _fbIgnoreNext = false; return; }
+      if(!val) return;
+      // Ignore own saves within 2 seconds
+      if(Date.now() - _lastSaveTime < 2000) return;
       ST = val;
       try{ localStorage.setItem('lime_opening_v2', JSON.stringify(ST)); }catch(e){}
       syncIndicator('saved', '✓ Синхронизировано');
